@@ -1,0 +1,103 @@
+```python
+import streamlit as st
+import pandas as pd
+import numpy as np
+import random
+import re
+from datetime import datetime, timedelta
+
+# =====================================================================
+# 1. CORE DATA GENERATOR SCRIPT (STABLE CONFIGURATION)
+# =====================================================================
+def generate_ecommerce_fraud_data(num_records: int = 40) -> pd.DataFrame:
+    """
+    Generate a synthetic dataset representing e-commerce transactions with fraud indicators.
+
+    Args:
+        num_records (int): Number of records to generate.
+
+    Returns:
+        pd.DataFrame: DataFrame containing the generated dataset.
+    """
+    random.seed(42)
+    np.random.seed(42)
+
+    customer_ids = [f"CUST_{1000 + i}" for i in range(num_records)]
+    order_ids = [f"ORD_{5000 + i}" for i in range(num_records)]
+    device_hashes = [f"dev_hash_{random.randint(100000, 999999)}" for _ in range(num_records)]
+    order_values = [round(random.uniform(15.0, 700.0), 2) for _ in range(num_records)]
+    payment_methods = random.choices(["COD", "Prepaid", "Subscription_Wallet"], k=num_records)
+    past_cancellations = random.choices([0, 1, 2, 3, 4], weights=[0.6, 0.2, 0.1, 0.05, 0.05], k=num_records)
+
+    subscription_days_left = [
+        random.choice([30, 60, 90, 180, 365]) if p == "Subscription_Wallet"
+        else random.choice([0, 30]) for p in payment_methods
+    ]
+
+    status = []
+    for i in range(num_records):
+        if payment_methods[i] == "COD" and past_cancellations[i] > 1:
+            status.append(random.choices([1, 0], weights=[0.8, 0.2])[0])
+        elif payment_methods[i] == "Prepaid":
+            status.append(random.choices([1, 0], weights=[0.05, 0.95])[0])
+        else:
+            status.append(random.choices([1, 0], weights=[0.15, 0.85])[0])
+
+    df = pd.DataFrame({
+        "customer_id": customer_ids,
+        "order_id": order_ids,
+        "device_fingerprint": device_hashes,
+        "order_value_usd": order_values,
+        "payment_method": payment_methods,
+        "past_cancellations_count": past_cancellations,
+        "subscription_days_left": subscription_days_left,
+        "mid_delivery_cancelled": status
+    })
+
+    return df
+
+# =====================================================================
+# 2. STATE PERSISTENCE ENGINE (SECURE MEMORY INITIALIZATION)
+# =====================================================================
+if "dataset" not in st.session_state:
+    st.session_state.dataset = generate_ecommerce_fraud_data(40)
+if "global_blacklist" not in st.session_state:
+    st.session_state.global_blacklist = set()
+if "trust_bar" not in st.session_state:
+    # Initialize trust bar at 100, can go up or down based on user actions
+    st.session_state.trust_bar = 100
+if "chances_left" not in st.session_state:
+    # User has 3 chances for fraud detection
+    st.session_state.chances_left = 3
+if "last_action_reason" not in st.session_state:
+    st.session_state.last_action_reason = ""
+
+# =====================================================================
+# 3. FUNCTION TO UPDATE TRUST BAR BASED ON ACTIONS
+# =====================================================================
+def update_trust_bar(change: int):
+    """
+    Adjusts the trust bar value based on user actions.
+
+    Args:
+        change (int): Amount to change the trust bar by (positive or negative).
+    """
+    st.session_state.trust_bar = max(0, min(100, st.session_state.trust_bar + change))
+
+# =====================================================================
+# 4. MAIN STREAMLIT APP LAYOUT AND LOGIC
+# =====================================================================
+st.set_page_config(page_title="Anti-Fraud E-Commerce Gateway", layout="wide")
+st.title("🛡️ Cross-Platform Fraud & Mid-Delivery Mitigation Suite")
+st.write("An enterprise background analytics application designed to stop logistics margin drain.")
+
+# Fetch dataset and KPIs
+df = st.session_state.dataset
+total_orders = len(df)
+frauds_caught = int(df["mid_delivery_cancelled"].sum())
+financial_risk = float(df[df["mid_delivery_cancelled"] == 1]["order_value_usd"].sum())
+
+# KPIs Display
+kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+kpi1.metric("Total Tracked Orders", total_orders)
+kpi2
